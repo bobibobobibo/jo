@@ -248,6 +248,10 @@ const CANVAS_W   = 1000;
 const CANVAS_H   = 600;
 const TOTAL_LAPS = 3;
 const STORAGE_KEY = 'f1_records_v1';
+const COLLISION_SPEED_PENALTY  = 0.52;  // speed multiplier on wall hit (48% reduction)
+const START_GRID_DISTANCE      = 90;    // min px car must travel before lap counting begins
+const SPEED_TO_KMH             = 28;    // internal speed unit → displayed km/h
+const COUNTDOWN_INTERVAL_MS    = 1000;  // milliseconds between countdown ticks
 
 const STATE = { MENU: 0, COUNTDOWN: 1, RACING: 2, PAUSED: 3, FINISHED: 4 };
 let gameState = STATE.MENU;
@@ -439,7 +443,7 @@ class Track {
       const ratio = (limit - 2) / minDist;
       car.x = cpx + (car.x - cpx) * ratio;
       car.y = cpy + (car.y - cpy) * ratio;
-      car.speed *= 0.52; // collision penalty
+      car.speed *= COLLISION_SPEED_PENALTY; // collision penalty
     }
   }
 }
@@ -563,7 +567,7 @@ class Race {
 
     // Wait until car has left the starting grid
     if (!this.hasLeftStart) {
-      if (Math.hypot(x - this.startX, y - this.startY) > 90) this.hasLeftStart = true;
+      if (Math.hypot(x - this.startX, y - this.startY) > START_GRID_DISTANCE) this.hasLeftStart = true;
       return;
     }
 
@@ -692,7 +696,7 @@ function update(dt, now) {
   document.getElementById('hud-lap').textContent      = race.currentLap;
   document.getElementById('hud-lap-time').textContent = fmtTime(lt);
   document.getElementById('hud-best-lap').textContent = fmtTime(disp);
-  document.getElementById('hud-speed').textContent    = Math.round(Math.abs(car.speed) * 28);
+  document.getElementById('hud-speed').textContent    = Math.round(Math.abs(car.speed) * SPEED_TO_KMH);
 }
 
 function render() {
@@ -865,7 +869,11 @@ function beginRace() {
   race  = new Race(car, track);
   prevCarX = car.x; prevCarY = car.y;
 
-  document.getElementById('hud-total').textContent = TOTAL_LAPS;
+  document.getElementById('hud-total').textContent     = TOTAL_LAPS;
+  document.getElementById('hud-lap').textContent       = '1';
+  document.getElementById('hud-lap-time').textContent  = '00:00.000';
+  document.getElementById('hud-best-lap').textContent  = fmtTime(getRecord(selectedTrackId));
+  document.getElementById('hud-speed').textContent     = '0';
 
   showScreen(null);
   cls('hud', true);
@@ -881,7 +889,7 @@ function beginRace() {
   const tick = () => {
     if (count > 0) {
       cdEl.textContent = count--;
-      countdownTimer = setTimeout(tick, 1000);
+      countdownTimer = setTimeout(tick, COUNTDOWN_INTERVAL_MS);
     } else {
       cdEl.textContent = 'GO!';
       countdownTimer = setTimeout(() => {
